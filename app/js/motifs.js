@@ -260,6 +260,8 @@ function motifSearch_Sustained(
     collapsed_reaction_dict,
     expression_dict,
     path_mapper,
+    value_type,
+    stats_dict,
     modifiers) {
   console.log("motif search 4")
   console.log("Sustained perturbation threshold set at: ", threshold)
@@ -321,6 +323,30 @@ function motifSearch_Sustained(
           magnitude_change = magnitude_change_down;
         }
         reaction.magnitude_change = magnitude_change;
+
+        let p_source;
+        let p_target;
+        if (value_type === "Expression Values"){
+          let stats_comps = parseComponents(
+            reaction,
+            stats_dict);
+          if(stats_comps[0].length > 0){
+            p_source = Math.min(...stats_comps[0]);
+          } else {
+            p_source = 1.01; // It should be "null", but for sorting purpose, I cheat a little bit by setting the value to be 1.01.
+          }
+          if(stats_comps[1].length > 0){
+            p_target = Math.min(...stats_comps[1]);
+          } else {
+            p_target = 1.01;
+          }
+
+        } else { // value_type === "Stats"
+          p_source = Math.min(...updated_source);
+          p_target = Math.min(...updated_target);
+        }
+        reaction.p_values = {"source":p_source, "target":p_target};
+
         discovered_motifs.push(reaction);
       }
     }
@@ -341,6 +367,8 @@ function motifSearch_PathMax(
     collapsed_reaction_dict,
     expression_dict,
     path_mapper,
+    value_type,
+    stats_dict,
     modifiers) {
   console.log("motif search 5")
   console.log("Pathway min/max threshold set at: ", threshold)
@@ -350,6 +378,7 @@ function motifSearch_PathMax(
   for (pathway in mod_collapsed_pathways) {
 
     let values = [];
+    let stats_values = [];
 
     let reactions = mod_collapsed_pathways[pathway].reactions;
     for (rxn in reactions) {
@@ -359,6 +388,12 @@ function motifSearch_PathMax(
         expression_dict)
       let updated_source = comps[0];
       let updated_target = comps[1];
+      if(value_type === "Expression Values"){
+        let stats_comps =  parseComponents(
+          reaction,
+          stats_dict);
+        stats_values = stats_values.concat(stats_comps[0], stats_comps[1])
+      }
 
       // Combine all values
       values = values.concat(updated_source, updated_target);
@@ -367,6 +402,11 @@ function motifSearch_PathMax(
     if (values.length > 0) {
       if (Math.abs(Math.max.apply(Math,values) - Math.min.apply(Math,values)) >= threshold) {
         mod_collapsed_pathways[pathway].magnitude_change = Math.abs(Math.max.apply(Math,values) - Math.min.apply(Math,values));
+        if(value_type === "Expression Values"){
+          mod_collapsed_pathways[pathway].p_value = Math.min(...stats_values);
+        } else{ // value_type === "Stats"
+          mod_collapsed_pathways[pathway].p_value = Math.min(...values);
+        }
         discovered_motifs.push(mod_collapsed_pathways[pathway]);
       }
     }

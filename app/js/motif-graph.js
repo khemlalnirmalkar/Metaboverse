@@ -103,10 +103,11 @@ class MetaGraph{
     this.pathway_svg_height = parseFloat(this.pathway_svg.style("height", "490px"));
 
     this.sort_type_dropdown = document.getElementById("sort_type");
+    this.motif_type = "reaction";
     let that = this;
     this.sort_type_dropdown.onchange = function() {
       if(that.motif !== undefined){
-        that.drawMotifSearchResult(that.motif);
+        that.drawMotifSearchResult(that.motif, that.motif_type);
       }
     }
   } catch(e) {}
@@ -131,6 +132,7 @@ class MetaGraph{
           if(value_type === "Stats"){
             value_dict = this.stats_dict;
           }
+          this.motif_type = "reaction";
           this.motif = motifSearch_Avg(
             threshold,
             this.collapsed_reaction_dict,
@@ -157,6 +159,7 @@ class MetaGraph{
           if(value_type === "Stats"){
             value_dict = this.stats_dict;
           }
+          this.motif_type = "reaction";
           this.motif = motifSearch_MaxMax(
             threshold,
             this.collapsed_reaction_dict,
@@ -183,6 +186,7 @@ class MetaGraph{
           if(value_type === "Stats"){
             value_dict = this.stats_dict;
           }
+          this.motif_type = "reaction";
           this.motif = motifSearch_MaxMin(
             threshold,
             this.collapsed_reaction_dict,
@@ -206,14 +210,18 @@ class MetaGraph{
             .style("visibility","hidden");
           let threshold = d3.select("#sustained_num").node().value;
           let value_dict = this.expression_dict;
-          if(value_type_dropdown.options[value_type_dropdown.selectedIndex].text === "Stats"){
+          let value_type = value_type_dropdown.options[value_type_dropdown.selectedIndex].text;
+          if(value_type === "Stats"){
             value_dict = this.stats_dict;
           }
+          this.motif_type = "reaction";
           this.motif = motifSearch_Sustained(
             threshold,
             this.collapsed_reaction_dict,
             value_dict,
-            this.path_mapper)
+            this.path_mapper,
+            value_type,
+            this.stats_dict)
           if (this.motif !== undefined) {
             this.drawMotifSearchResult(this.motif);
           }
@@ -230,23 +238,32 @@ class MetaGraph{
             .style("visibility","hidden");
           let threshold = d3.select("#pathmax_num").node().value;
           let value_dict = this.expression_dict;
-          if(value_type_dropdown.options[value_type_dropdown.selectedIndex].text === "Stats"){
+          let value_type = value_type_dropdown.options[value_type_dropdown.selectedIndex].text;
+          if(value_type === "Stats"){
             value_dict = this.stats_dict;
           }
+          this.motif_type = "pathway";
           this.motif = motifSearch_PathMax(
             threshold,
             this.mod_collapsed_pathways,
             this.collapsed_reaction_dict,
             value_dict,
-            this.path_mapper)
+            this.path_mapper,
+            value_type,
+            this.stats_dict)
           if (this.motif !== undefined) {
-            this.drawMotifSearchResultPathway(this.motif);
+            // this.drawMotifSearchResultPathway(this.motif);
+            this.drawMotifSearchResult(this.motif, "pathway");
           }
         }
       )
     }
 
-    drawMotifSearchResult(motif_list){
+    drawMotifSearchResult(motif_list, motif_type="reaction"){
+      if(motif_type === "pathway"){
+        this.drawMotifSearchResultPathway(motif_list);
+        return;
+      }
       //Change this to sort by p-values
       //motif_list.sort(function(a,b){
       //  console.log(a.pathways)
@@ -461,8 +478,24 @@ class MetaGraph{
       //  console.log(a.pathways)
       //  return d3.descending(a.pathways.length, b.pathways.length)
       //})
+      let sort_type = this.sort_type_dropdown.options[this.sort_type_dropdown.selectedIndex].text;
+      if(sort_type === "Number of Pathways") {
+        // alert("Not applicable!")
+      } else if(sort_type === "Magnitude Change"){
+        motif_list.sort(function(a,b){
+          return d3.descending(a.magnitude_change, b.magnitude_change);
+        })
+      } else if(sort_type === "Stats Significance"){
+        motif_list.sort(function(a,b){
+          return d3.ascending(a.p_value, b.p_value);
+        })
+      }
+
 
       let stamp_height = 30;
+      if(sort_type != "Number of Pathways"){
+        stamp_height = 50;
+      }
       this.stamp_svg_height = Math.ceil(
         motif_list.length)
         * (stamp_height + this.stamp_svg_margin.vertical);
@@ -522,7 +555,7 @@ class MetaGraph{
         let start_x = 5;
         let start_y = this.stamp_svg_margin.top + Math.floor(i)*(stamp_height+this.stamp_svg_margin.vertical);
 
-        let tg = d3.select("#stamp-circle-"+i).selectAll("text")
+        let tg = d3.select("#stamp-circle-"+i).selectAll(".title")
           .data([motif_list[i]]);
         tg.exit().remove();
         tg = tg.enter().append("text").merge(tg)
@@ -537,6 +570,22 @@ class MetaGraph{
           })
           .style("font-size","14px")
           .style("font-weight","bold")
+
+        let stg = d3.select("#stamp-circle-"+i).selectAll(".sub_title")
+          .data([motif_list[i]]);
+        stg.exit().remove();
+        stg = stg.enter().append("text").merge(stg)
+          .attr("x",start_x + 10)
+          .attr("y",start_y + 40)
+          .text(d=> {
+            if(sort_type === "Magnitude Change"){
+              return "Magnitude Change: "+Math.round(d.magnitude_change*100)/100;
+            } else if(sort_type === "Stats Significance") {
+              return "Minimum p-value: "+Math.round(d.p_value*100)/100;
+            }
+          })
+          .style("font-size","12px")
+          // .style("font-weight","bold")
       }
     }
 
